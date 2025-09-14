@@ -1,0 +1,412 @@
+<?php
+
+namespace App\Http\Controllers;
+
+use App\Http\Requests\AddBeneficiaryProjectRequest;
+use App\Http\Requests\AddCharityProjectRequest;
+use App\Http\Requests\AddProjectRequest;
+use App\Http\Requests\AddVolunteerProjectRequest;
+use App\Http\Requests\UpdateProjectRequest;
+use App\Models\Charity;
+use App\Models\Donation;
+use App\Models\Notification;
+use App\Models\Project;
+use App\Models\Type;
+use App\Models\User;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Storage;
+
+class ProjectController extends Controller
+{
+    public function home()
+    {
+        $projects = Project::where('duration_type', 'دائم')->get();
+        foreach ($projects as $project) {
+            $project['photo_url'] = asset(Storage::url($project['photo']));
+            $project['type'] = $project->type->name;
+        }
+        return response()->json($projects, 200);
+    }
+
+    public function healthProjects()
+    {
+        $projects = Project::where('type_id', 1)->where('duration_type', '!=', 'تطوعي')->where('duration_type', '!=', 'دائم')->whereNotIn('status', ['منتهي', 'معلق'])->get();
+        foreach ($projects as $project) {
+            $project['photo_url'] = asset(Storage::url($project['photo']));
+            $percentage = ($project['current_amount'] / $project['total_amount']) * 100.0;
+            $project['percentage'] = $percentage;
+            $project['type'] = $project->type->name;
+        }
+        //  $projects = $projects->filter(function ($project) {
+        //     return $project->status !== 'منتهي';
+        //     })->values();
+
+        return response()->json($projects, 200);
+    }
+
+    public function educationalProjects()
+    {
+        $projects = Project::where('type_id', 2)->where('duration_type', '!=', 'تطوعي')->where('duration_type', '!=', 'دائم')->whereNotIn('status', ['منتهي', 'معلق'])->get();
+        foreach ($projects as $project) {
+            $project['photo_url'] = asset(Storage::url($project['photo']));
+            $percentage = ($project['current_amount'] / $project['total_amount']) * 100.0;
+            $project['percentage'] = $percentage;
+            $project['type'] = $project->type->name;
+        }
+        return response()->json($projects, 200);
+    }
+
+    public function residentialProjects()
+    {
+        $projects = Project::where('type_id', 3)->where('duration_type', '!=', 'تطوعي')->where('duration_type', '!=', 'دائم')->whereNotIn('status', ['منتهي', 'معلق'])->get();
+        foreach ($projects as $project) {
+            $project['photo_url'] = asset(Storage::url($project['photo']));
+            $percentage = ($project['current_amount'] / $project['total_amount']) * 100.0;
+            $project['percentage'] = $percentage;
+            $project['type'] = $project->type->name;
+        }
+        return response()->json($projects, 200);
+    }
+
+    public function nutritionalProjects()
+    {
+        $projects = Project::where('type_id', 4)->where('duration_type', '!=', 'تطوعي')->where('duration_type', '!=', 'دائم')->whereNotIn('status', ['منتهي', 'معلق'])->get();
+        foreach ($projects as $project) {
+            $project['photo_url'] = asset(Storage::url($project['photo']));
+            $percentage = ($project['current_amount'] / $project['total_amount']) * 100.0;
+            $project['percentage'] = $percentage;
+            $project['type'] = $project->type->name;
+        }
+        return response()->json($projects, 200);
+    }
+
+    public function religionProjects()
+    {
+        $projects = Project::where('type_id', 7)->where('duration_type', '!=', 'تطوعي')->where('duration_type', '!=', 'دائم')->whereNotIn('status', ['منتهي', 'معلق'])->get();
+        foreach ($projects as $project) {
+            $project['photo_url'] = asset(Storage::url($project['photo']));
+            $percentage = ($project['current_amount'] / $project['total_amount']) * 100.0;
+            $project['percentage'] = $percentage;
+            $project['type'] = $project->type->name;
+        }
+        return response()->json($projects, 200);
+    }
+
+    public function emergencyProjects()
+    {
+        $projects = Project::where('priority', 'حرج')->where('duration_type', '!=', 'تطوعي')->where('duration_type', '!=', 'دائم')->whereNotIn('status', ['منتهي', 'معلق'])->get();
+        foreach ($projects as $project) {
+            $project['photo_url'] = asset(Storage::url($project['photo']));
+            $percentage = ($project['current_amount'] / $project['total_amount']) * 100.0;
+            $project['percentage'] = $percentage;
+            $project['type'] = $project->type->name;
+        }
+        return response()->json($projects, 200);
+    }
+
+
+    public function getCompletedProjects()
+    {
+        $projects = Project::where('status', 'منتهي')
+            ->whereNotIn('duration_type', ['تطوعي', 'فردي'])
+            ->get();
+
+        $formattedProjects = $projects->map(function ($project) {
+            return [
+                'name' => $project->name,
+                'description' => $project->description,
+                'type' => $project->type->name,
+                'photo_url' => asset(Storage::url($project->photo)),
+                'total_amount' => $project->total_amount,
+            ];
+        });
+
+        return response()->json($formattedProjects, 200);
+    }
+
+
+
+    // لازم يتعدل عليه انو احتمال ينسحب من رصيد الجمعية قيمة وقت يضيف مشروع
+    public function addCharityProject(AddCharityProjectRequest $request)
+    {
+        $validatedData = $request->validated();
+
+        // get the type id
+        $type = Type::where('name', $validatedData['type_id'])->first();
+        $validatedData['type_id'] = $type->id;
+
+        // update charity balance
+        $charity = Charity::findOrFail(1);
+
+        $balanceMap = [
+            'صحي' => 'health_projects_balance',
+            'تعليمي' => 'educational_projects_balance',
+            'سكني' => 'housing_projects_balance',
+            'غذائي' => 'nutritional_projects_balance',
+            'ديني' => 'religious_projects_balance',
+        ];
+
+        $typeName = $type->name;
+
+        if (!isset($balanceMap[$typeName])) {
+            return response()->json(['message' => 'error has occurred'], 400);
+        }
+
+        $column = $balanceMap[$typeName];
+
+        if ($charity->$column < $validatedData['current_amount']) {
+            return response()->json(['message' => 'لا يوجد رصيد كافي في رصيد الجمعية للمساهمة في هذا المشروع'], 400);
+        }
+
+        $charity->$column -= $validatedData['current_amount'];
+        $charity->save();
+
+        // save the photo
+        $file = $validatedData['photo'];
+        $fileName = time() . '.' . $file->getClientOriginalExtension();
+        $filePath = $file->storeAs('temporary_projects_images', $fileName, 'public'); // Saves in storage/app/public/temporary_projects_images
+        $validatedData['photo'] = $filePath;
+
+        // create the project
+        $project = Project::create($validatedData);
+
+        // send notifications to donors if needed
+        $users = User::all();
+        if ($project->priority === 'حرج') {
+            foreach ($users as $user) {
+                if ($user->role === 'مستفيد') continue;
+                $notification = [
+                    'user_id' => $user->id,
+                    'project_id' => $project->id,
+                    'title' => 'نداء عاجل، هناك مشروع بحاجة لدعمك',
+                    'message' => 'حالة عاجلة جديدة بحاجة إلى التدخل الفوري ' . $project->name . ' نأمل أن تكون من المبادرين لدعمها'
+                ];
+                Notification::create($notification);
+            }
+        }
+        return response()->json($project, 201);
+    }
+
+    public function addBeneficiaryProject(AddBeneficiaryProjectRequest $request)
+    {
+        $validatedData = $request->validated();
+
+        // get the type id
+        $type = Type::where('name', $validatedData['type_id'])->first();
+        $validatedData['type_id'] = $type->id;
+
+        $beneficiary = User::where('email', $validatedData['email'])->first();
+        if ($beneficiary->role !== 'مستفيد') {
+            return response()->json(['message' => 'لا يوجد مستفيد مسجل في الجمعية بهذا الرقم'], 400);
+        }
+        if ($beneficiary->ban) {
+            return response()->json(['message' => 'لا يمكنك إنشاء مشروع لهذا المحتاج لأنه محظور حالياً، إن كنت تعتقد أنه قد حصل خطأ ما يمكنك فك الحظر عنه'], 400);
+        }
+
+        // update charity balance
+        $charity = Charity::findOrFail(1);
+
+        $balanceMap = [
+            'صحي' => 'health_projects_balance',
+            'تعليمي' => 'educational_projects_balance',
+            'سكني' => 'housing_projects_balance',
+            'غذائي' => 'nutritional_projects_balance',
+            'ديني' => 'religious_projects_balance',
+        ];
+
+        $typeName = $type->name;
+
+        if (!isset($balanceMap[$typeName])) {
+            return response()->json(['message' => 'error has occurred'], 400);
+        }
+
+        $column = $balanceMap[$typeName];
+
+        if ($charity->$column < $validatedData['current_amount']) {
+            return response()->json(['message' => 'لا يوجد رصيد كافي في رصيد الجمعية للمساهمة في هذا المشروع'], 400);
+        }
+
+        $charity->$column -= $validatedData['current_amount'];
+        $charity->save();
+
+        // save the photo
+        $file = $validatedData['photo'];
+        $fileName = time() . '.' . $file->getClientOriginalExtension();
+        $filePath = $file->storeAs('temporary_projects_images', $fileName, 'public'); // Saves in storage/app/public/temporary_projects_images
+        $validatedData['photo'] = $filePath;
+
+        $validatedData['duration_type'] = 'فردي';
+        $validatedData['user_id'] = $beneficiary->id;
+        unset($validatedData['email']);
+
+        // create the project
+        $project = Project::create($validatedData);
+
+        // send notifications to the beneficiary
+        $notification = [
+            'user_id' => $beneficiary->id,
+            'project_id' => $project->id,
+            'title' => 'تم نشر حالتك',
+            'message' => 'تم نشر حالتك في التطبيق، نأمل أن تصل المساعدة إليك قريباً بإذن الله'
+        ];
+        Notification::create($notification);
+        sendWhatsAppMessage($beneficiary->phone_number, "تم نشر حالتك في التطبيق، نأمل أن تصل المساعدة إليك قريباً بإذن الله");
+
+        // send notifications to donors if needed
+        $users = User::all();
+        if ($project->priority === 'حرج') {
+            foreach ($users as $user) {
+                if ($user->role === 'مستفيد') continue;
+                $notification = [
+                    'user_id' => $user->id,
+                    'project_id' => $project->id,
+                    'title' => 'نداء عاجل، هناك مشروع بحاجة لدعمك',
+                    'message' => 'حالة عاجلة جديدة بحاجة إلى التدخل الفوري ' . $project->name . ' نأمل أن تكون من المبادرين لدعمها'
+                ];
+                Notification::create($notification);
+            }
+        }
+        return response()->json($project, 201);
+    }
+
+    public function addVolunteerProject(AddVolunteerProjectRequest $request)
+    {
+        $validatedData = $request->validated();
+        $validatedData['photo'] = 'charity_logo/logo.png';
+
+        // get the type id
+        $type = Type::where('name', $validatedData['type_id'])->first();
+        $validatedData['type_id'] = $type->id;
+
+        $validatedData['duration_type'] = 'تطوعي';
+        if ($type->name === 'عن بعد')
+            $validatedData['location'] = 'عن بعد';
+
+        // create project
+        $project = Project::create($validatedData);
+
+        // send notification to volunteers
+        $users = User::all();
+        foreach ($users as $user) {
+            if ($user->role === 'متطوع' && !$user->ban) {
+                $notification = [
+                    'user_id' => $user->id,
+                    'project_id' => $project->id,
+                    'title' => 'فرصة تطوع جديدة بانتظارك',
+                    'message' => 'مشروع تطوعي جديد متاح الآن ' . $project->name . ' يمكنك التقديم والمساهمة في خدمة المجتمع، انضم واصنع فرقاً'
+                ];
+                Notification::create($notification);
+            }
+        }
+        return response()->json($project, 201);
+    }
+
+    public function deleteProject(Request $request)
+    {
+        $id = $request->id;
+        $project = Project::findOrFail($id);
+        if ($project->current_amount != 0) {
+            return response()->json(['message' => 'لا يمكن حذف هذا المشروع بسبب وجود تبرعات سابقة فيه.'], 400);
+        }
+        $project->status = 'محذوف';
+        $project->save();
+        return response()->json(null, 204);
+    }
+
+
+
+    public function changeProjectStatus(Request $request)
+    {
+        $request->validate([
+            'project_id' => 'required|exists:projects,id',
+            'status'     => 'required|in:جاري,معلق',
+        ]);
+
+        $project = Project::find($request->project_id);
+        $oldStatus = $project->status;  // نحتفظ بالحالة القديمة
+        $project->status = $request->status;
+        $project->save();
+
+        // جلب المستخدمين الذين تبرعوا لهذا المشروع
+        $donorIds = Donation::where('project_id', $project->id)
+            ->distinct()
+            ->pluck('user_id');
+
+        // إرسال إشعارات حسب الحالة الجديدة
+        foreach ($donorIds as $userId) {
+            if ($request->status === 'معلق') {
+                Notification::create([
+                    'user_id' => $userId,
+                    'title'   => 'تعليق المشروع مؤقتاً',
+                    'message' => "نود إعلامكم بأنه تم تعليق المشروع '{$project->name}' لفترة قصيرة، وسيعود لاستقبال التبرعات قريباً.",
+                ]);
+            } elseif ($request->status === 'جاري' && $oldStatus === 'معلق') {
+                Notification::create([
+                    'user_id' => $userId,
+                    'title'   => 'إعادة تفعيل المشروع',
+                    'message' => "تمت إعادة تفعيل المشروع '{$project->name}' وهو الآن يستقبل التبرعات مجدداً. نشكركم على دعمكم!",
+                ]);
+            }
+        }
+
+        return response()->json(['message' => 'تم تحديث حالة المشروع بنجاح.'], 200);
+    }
+
+
+
+    //ارجاع المشاريع التطوع حسب التايب
+    public function getVolunteerProjectsByType($volunteeringDomain)
+    {
+        $type = Type::where('name', $volunteeringDomain)->first();
+
+        if ($type) {
+            $projects = Project::where('type_id', $type->id)
+                ->where('duration_type', 'تطوعي')->where('status', 'جاري')->whereColumn('current_amount', '<', 'total_amount')
+                ->get();
+
+            return response()->json($projects, 200);
+        } else {
+            return response()->json(['message' => 'لا يوجد نوع بهذا الاسم'], 404);
+        }
+    }
+
+    public function getMyRequestStatus()
+    {
+        $user = Auth::user();
+        if ($user->role !== 'مستفيد') {
+            return response()->json(['message' => 'هذه الخدمة متاحة فقط للمستفيدين.'], 403);
+        }
+
+        $projects = Project::where('user_id', $user->id)
+            ->where('duration_type', 'فردي')
+            ->latest()
+            ->get();
+        if ($projects->isEmpty()) {
+            return response()->json(['message' => 'لا يوجد أي مشروع مرتبط بك حالياً.'], 404);
+        }
+
+        $results = $projects->map(function ($project) {
+            return [
+                'name' => $project->name,
+                'description' => $project->description,
+                'current_amount' => $project->current_amount,
+                'total_amount' => $project->total_amount,
+                'percentage' => ($project->current_amount / $project->total_amount) * 100.0,
+            ];
+        });
+
+        return response()->json([
+            'message' => 'تم جلب المشاريع بنجاح.',
+            'projects' => $results
+        ], 200);
+    }
+
+
+    /* public function editProject(UpdateProjectRequest $request, $id)
+    {
+        $project = Project::findOrFail($id);
+        $project->update($request->validated());
+        return response()->json($project, 200);
+    } */
+}
