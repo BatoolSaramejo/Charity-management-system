@@ -5,9 +5,9 @@ It provides a complete set of APIs to manage **donations, beneficiaries, volunte
 
 ---
 
-## 📌 Features (Functional Requirements)
+##  Features (Functional Requirements)
 
-### 👤 Donor
+###  Donor
 - Register, login, logout, reset password.
 - Browse ongoing and urgent charity projects (health, education, housing, food).
 - View completed projects and project details (amount needed, progress, status).
@@ -22,7 +22,7 @@ It provides a complete set of APIs to manage **donations, beneficiaries, volunte
 - Submit volunteer requests via a questionnaire and track status.
 - View and provide feedback on experiences.
 
-### 🧑‍🦱 Beneficiary
+###  Beneficiary
 - Register, login, logout.
 - Submit a help request through a structured form (health, education, housing, food).
 - Track request status (under review, approved, rejected).
@@ -31,14 +31,14 @@ It provides a complete set of APIs to manage **donations, beneficiaries, volunte
 - Receive financial gifts and track delivery status.
 - Provide feedback on their experience.
 
-### 🙋 Volunteer
+###  Volunteer
 - Register, login, logout.
 - Submit volunteer applications via a questionnaire.
 - Track request status (under review, approved, rejected).
 - Participate in one project at a time.
 - Receive notifications about assignments and progress.
 
-### 🛠️ Admin
+###  Admin
 - Login, logout.
 - View organization statistics (donations, beneficiaries, volunteers).
 - Manage projects: add, update status (active, pending, finished), or delete.
@@ -49,7 +49,7 @@ It provides a complete set of APIs to manage **donations, beneficiaries, volunte
 - Manage gifts: review delivery status and mark as delivered.
 - Review and approve/reject feedback from beneficiaries.
 
-### 👑 Super Admin
+###  Super Admin
 - Login, logout.
 - View statistics about completed projects.
 - Manage admins: add new accounts, search, block/unblock.
@@ -58,14 +58,14 @@ It provides a complete set of APIs to manage **donations, beneficiaries, volunte
 
 ---
 
-## ⚙️ Tech Stack
+##  Tech Stack
 - **Backend**: Laravel (PHP)
 - **Database**: MySQL
 - **Frontend Clients**: Flutter (Mobile & Web), React (Web Admin Panel)
 
 ---
 
-## 🚀 Installation
+##  Installation
 1. Clone repository:
    ```bash
    git clone https://github.com/BatoolSaramejo/charity-backend.git
@@ -87,3 +87,31 @@ It provides a complete set of APIs to manage **donations, beneficiaries, volunte
 
 7. Start server:
     php artisan serve
+
+
+ ##   Project Structure
+
+   - app/Models → Eloquent models
+
+   - app/Http/Controllers → API controllers
+
+   - routes/api.php → API routes
+
+   - database/migrations → Database schema
+
+   - config/ → Application configuration
+   
+
+ ## API Documentation (Basic)
+
+   - POST /api/register → Register a new user
+
+   - POST /api/login → User login
+
+   - GET /api/projects → List active projects
+
+   - POST /api/donate → Make a donation
+
+   - POST /api/help-request → Submit a beneficiary help request
+
+   - POST /api/volunteer-request → Submit volunteer application
